@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛸 NEXUS LIST DATA HOSTING CENTER</title>
+    <style>
+        body { background-color: #0d1117; color: #58a6ff; font-family: 'Courier New', Courier, monospace; padding: 20px; text-align: center; }
+        .panel { max-width: 600px; margin: auto; background: #161b22; padding: 30px; border-radius: 10px; border: 1px solid #238636; box-shadow: 0px 0px 15px #238636; }
+        h1 { color: #238636; font-size: 22px; text-transform: uppercase; margin-bottom: 20px; }
+        label { display: block; text-align: left; color: #8b949e; margin-top: 10px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border-radius: 5px; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; }
+        button { background-color: #238636; color: white; font-weight: bold; cursor: pointer; border: none; text-transform: uppercase; margin-top: 15px; font-size: 16px; }
+        button:hover { background-color: #2ea043; }
+        .info { margin-top: 20px; font-size: 13px; color: #8b949e; text-align: left; background: #21262d; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h1>🧬 NEXUS INTERNAL LIST HOSTING v2 🧬</h1>
+    <p>🔮 Apni details bharein aur file ki list hosting instant chalu karein.</p>
+    
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <!-- Token Input -->
+        <label>🤖 Telegram Bot Token Key:</label>
+        <input type="text" name="bot_token" placeholder="🔑 Enter Bot Token from @BotFather" required>
+        
+        <!-- User Details Input -->
+        <label>👑 Host Commander Name:</label>
+        <input type="text" name="user_name" placeholder="✍️ Enter Your Name" required>
+
+        <label>📅 Date of Birth (DOB):</label>
+        <input type="date" name="user_dob" required>
+
+        <!-- File Input -->
+        <label>📦 Select List File (.txt Format):</label>
+        <input type="file" name="file" required>
+        
+        <!-- Expiry Timer -->
+        <label>⏳ System Expiry Timer (Lifespan):</label>
+        <select name="expiry">
+            <option value="1">⏱️ 1 Hour (Fast Session)</option>
+            <option value="6">⏱️ 6 Hours (Medium Session)</option>
+            <option value="12">⏱️ 12 Hours (Half Day)</option>
+            <option value="24">⏱️ 24 Hours (Full 1 Day)</option>
+        </select>
+        
+        <button type="submit">🔥 EXTRACT & START MATRIX HOSTING 🔥</button>
+    </form>
+
+    <div class="info">
+        📢 <b>System Log:</b> File ke andar ki har ek configuration line alag component banegi aur bot par <code>/list</code> command par active chalegi.
+    </div>
+</div>
+
+</body>
+  </html>
+  
