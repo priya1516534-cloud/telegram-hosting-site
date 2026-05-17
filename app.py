@@ -1,54 +1,25 @@
 import os
-import time
 import threading
-from flask import Flask, render_template, request
+from flask import Flask, request, render_template
 import requests
-
-# Parser logic import
 from list_parser import extract_list_from_file
 
 app = Flask(__name__)
 
-# --- GLOBAL DATABASE ---
-hosted_database = {}
-user_logs = {}
+# --- GLOBAL DATA ---
+bot_brain = {}       # { token: { keyword: reply } }
+user_logs = {}       # optional
+user_scores = {}     # { token: { chat_id: score } }
 
-# --- BACKGROUND CLEANER ---
-def bg_expiry_cleaner():
-    while True:
-        current_time = time.time()
-        for token in list(hosted_database.keys()):
-            hosted_database[token] = [
-                item for item in hosted_database[token] if current_time < item['expiry']
-            ]
-        time.sleep(30)
-
-threading.Thread(target=bg_expiry_cleaner, daemon=True).start()
-
-# --- WEBHOOK & MENU SETUP ---
+# --- WEBHOOK SETUP ---
 def set_webhook(token, request_url):
     base_url = request_url.replace('/upload', '')
     webhook_url = f"{base_url}/webhook/{token}"
     api_url = f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}"
     try:
-        r = requests.get(api_url, timeout=10)
-        return r.json()
+        requests.get(api_url, timeout=10)
     except:
-        return {"description": "Webhook Connection Failed"}
-
-def setup_bot_menu(token):
-    url = f"https://api.telegram.org/bot{token}/setMyCommands"
-    payload = {
-        "commands": [
-            {"command": "start", "description": "🚀 Nexus System Start"},
-            {"command": "list", "description": "📋 View Your File Data"},
-            {"command": "owner", "description": "👑 View Commander Info"},
-            {"command": "clear", "description": "🗑️ Clear Hosted Data"}
-        ]
-    }
-    requests.post(url, json=payload)
-
-# --- WEB ROUTES ---
+        pass
 
 @app.route('/')
 def index():
@@ -59,91 +30,87 @@ def handle_upload():
     bot_token = request.form.get('bot_token').strip()
     user_name = request.form.get('user_name').strip()
     user_dob = request.form.get('user_dob').strip()
-    expiry_hours = int(request.form.get('expiry', 1))
     uploaded_file = request.files.get('file')
 
-    if not bot_token or not uploaded_file or not user_name:
-        return "<h3>⚠️ Details missing hain!</h3>", 400
+    if not bot_token or not uploaded_file:
+        return "<h3>⚠️ Token aur File dono chahiye!</h3>", 400
 
     try:
-        extracted_items = extract_list_from_file(uploaded_file)
-        if not extracted_items:
+        lines = extract_list_from_file(uploaded_file)
+        if not lines:
             return "<h3>⚠️ File empty hai!</h3>", 400
 
-        expiry_epoch = time.time() + (expiry_hours * 3600)
-        hosted_database[bot_token] = [] # Reset old data for new file
-        
+        bot_brain[bot_token] = {}
+        for line in lines:
+            if ":" in line:
+                parts = line.split(":", 1)
+                bot_brain[bot_token][parts[0].strip().lower()] = parts[1].strip()
+            else:
+                bot_brain[bot_token][line.strip().lower()] = f"✅ Protocol {line.strip()} is Active!"
+
         user_logs[bot_token] = {"name": user_name, "dob": user_dob}
-
-        for item in extracted_items:
-            hosted_database[bot_token].append({"data_content": item, "expiry": expiry_epoch})
-
+        user_scores[bot_token] = {}   # naya score dict
         set_webhook(bot_token, request.url)
-        setup_bot_menu(bot_token)
 
         return f"""
-        <div style="background:#0d1117; color:#58a6ff; padding:50px; text-align:center; font-family:monospace; height:100vh;">
-            <h2 style="color:#238636;">✅ DATA DEPLOYED & REPLY MODE ACTIVE</h2>
-            <p><b>👑 Commander:</b> {user_name}</p>
-            <p><b>📦 Extracted Items:</b> {len(extracted_items)}</p>
-            <hr style="border:1px solid #30363d;">
-            <p>Ab bot har command ka <b>Direct Reply</b> karega.</p>
-            <br><a href="/" style="color:#238636;">[ BACK TO PANEL ]</a>
+        <div style="background:#0d1117; color:#58a6ff; padding:50px; text-align:center; font-family:monospace;">
+            <h2 style="color:#238636;">⚙️ BOT BRAIN + SCORE SYSTEM READY</h2>
+            <p><b>📦 Total Commands:</b> {len(bot_brain[bot_token])}</p>
+            <p>🔢 Score system active: /score se points check karo</p>
+            <a href="/" style="color:#238636;">← BACK TO PANEL</a>
         </div>
         """
     except Exception as e:
         return f"<h3>💥 Error: {str(e)}</h3>", 500
 
-# --- TELEGRAM WEBHOOK HANDLER (REPLY LOGIC) ---
-
 @app.route('/webhook/<token>', methods=['POST'])
 def bot_webhook_handler(token):
     payload = request.get_json()
-    
     if "message" in payload and "text" in payload["message"]:
         msg_obj = payload["message"]
         chat_id = msg_obj["chat"]["id"]
-        msg_id = msg_obj["message_id"] # Reply ke liye message ID
-        text = msg_obj["text"].lower()
+        msg_id = msg_obj["message_id"]
+        user_text = msg_obj["text"].strip().lower()
 
-        # START COMMAND
-        if text == "/start":
-            msg = "🛰️ **Nexus Core Online**\n\nMain aapki file ke data ke hisab se reply karunga."
-            send_tg_reply(token, chat_id, msg_id, msg)
-
-        # OWNER COMMAND
-        elif text == "/owner":
-            info = user_logs.get(token, {"name": "Not Found", "dob": "N/A"})
-            msg = f"👑 **HOST COMMANDER:**\n\n📛 Name: `{info['name']}`\n📅 DOB: `{info['dob']}`"
-            send_tg_reply(token, chat_id, msg_id, msg)
-
-        # LIST COMMAND (File Data Analysis)
-        elif text == "/list":
-            if token in hosted_database and hosted_database[token]:
-                reply = "📋 **YOUR FILE DATA LIST:**\n\n"
-                for idx, item in enumerate(hosted_database[token], 1):
-                    rem_min = int((item['expiry'] - time.time()) / 60)
-                    if rem_min > 0:
-                        reply += f"🔹 {idx}. `{item['data_content']}` (⏳ {rem_min}m)\n"
-            else:
-                reply = "📭 **Database empty!** Pehle file upload karein."
+        # /start command
+        if user_text == "/start":
+            reply = "🤖 System Online.\nCommands:\n/score - check your points\nSend any keyword from uploaded file"
             send_tg_reply(token, chat_id, msg_id, reply)
+            return 'OK', 200
 
-        # CLEAR COMMAND
-        elif text == "/clear":
-            hosted_database[token] = []
-            send_tg_reply(token, chat_id, msg_id, "🗑️ Sabhi records delete kar diye gaye hain.")
+        # Score check
+        if user_text == "/score":
+            score = user_scores.get(token, {}).get(chat_id, 0)
+            reply = f"🏆 **Your Score:** {score} points"
+            send_tg_reply(token, chat_id, msg_id, reply)
+            return 'OK', 200
+
+        # Keyword matching
+        if token in bot_brain:
+            if user_text in bot_brain[token]:
+                # INCREASE SCORE by 1
+                if token not in user_scores:
+                    user_scores[token] = {}
+                user_scores[token][chat_id] = user_scores[token].get(chat_id, 0) + 1
+                new_score = user_scores[token][chat_id]
+
+                data_reply = bot_brain[token][user_text]
+                # Append score info in reply
+                reply_with_score = f"{data_reply}\n\n🎯 +1 point! Total score: {new_score}"
+                send_tg_reply(token, chat_id, msg_id, reply_with_score)
+            else:
+                # silent if no match – but you can uncomment if needed
+                pass
 
     return 'OK', 200
 
-# --- REPLY SENDING FUNCTION ---
 def send_tg_reply(token, chat_id, msg_id, text):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "Markdown",
-        "reply_to_message_id": msg_id # Yeh line reply function on karti hai
+        "reply_to_message_id": msg_id
     }
     requests.post(url, json=payload)
 
